@@ -58,7 +58,14 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - lib/assets/
+    - lib/assets/background.png
+
+  fonts:
+    - family: DotMatrix
+      fonts:
+        - # noinspection YAMLSchemaValidation
+          asset: lib/assets/DOTMATRI.TTF
+
 
   # To add assets to your application, add an assets section, like this:
   # assets:
