@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_shell.dart';
 import '../case_data/ghosttrace_case_data.dart';
+import 'case_outcome_screen.dart';
 
 class SuspectProfileScreen extends StatelessWidget {
   final Suspect suspect;
@@ -115,7 +116,7 @@ class SuspectProfileScreen extends StatelessWidget {
                   icon: const Icon(Icons.search, color: AppShell.neonCyan),
                   label: const Text('Investigate Further'),
                   onPressed: () {
-                    Navigator.pop(context); // 👈 goes back to Investigation Hub
+                    Navigator.pop(context); // goes back to Investigation Hub
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppShell.neonCyan,
@@ -128,8 +129,19 @@ class SuspectProfileScreen extends StatelessWidget {
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Flagged ${suspect.name} as primary suspect'),
+                        content: Text('Flagging ${suspect.name} as primary suspect... Analyzing evidence...'),
                         backgroundColor: Colors.redAccent,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+
+                    // Navigate to outcome screen and pass the flagged suspect's name
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CaseOutcomeScreen(
+                          flaggedSuspectName: suspect.name,
+                        ),
                       ),
                     );
                   },
@@ -160,17 +172,23 @@ class SuspectProfileScreen extends StatelessWidget {
 
   double _getSuspicionValue(String level) {
     switch (level.toLowerCase()) {
-      case 'high':    return 0.85;
-      case 'medium':  return 0.55;
-      default:        return 0.25;
+      case 'high':
+        return 0.85;
+      case 'medium':
+        return 0.55;
+      default:
+        return 0.25;
     }
   }
 
   String _getSuspicionText(String level) {
     switch (level.toLowerCase()) {
-      case 'high':    return 'Critical';
-      case 'medium':  return 'Moderate';
-      default:        return 'Low';
+      case 'high':
+        return 'Critical';
+      case 'medium':
+        return 'Moderate';
+      default:
+        return 'Low';
     }
   }
 

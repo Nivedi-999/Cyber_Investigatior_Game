@@ -4,6 +4,10 @@ import '../theme/app_shell.dart';
 import '../case_data/ghosttrace_case_data.dart';
 import 'evidence_analysis_screen.dart';
 import 'suspect_profile_screen.dart';
+import '../services/tutorial_service.dart';
+import '../widgets/aria_guide.dart';
+import '../widgets/aria_controller.dart';
+import '../services/evidence_collector.dart';
 
 class InvestigationHubScreen extends StatefulWidget {
   const InvestigationHubScreen({super.key});
@@ -12,10 +16,33 @@ class InvestigationHubScreen extends StatefulWidget {
   State<InvestigationHubScreen> createState() => _InvestigationHubScreenState();
 }
 
-class _InvestigationHubScreenState extends State<InvestigationHubScreen> {
+class _InvestigationHubScreenState extends State<InvestigationHubScreen>
+    with AriaMixin {
   String _activeFeed = 'chat';
 
+  @override
+  void initState() {
+    super.initState();
+    TutorialService().onHubOpened();
+    // Show ARIA welcome message on first load
+    triggerAria(TutorialStep.welcomeToHub);
+  }
+
+  void _onAriaWelcomeDismissed() {
+    // After welcome is dismissed, advance to exploreFeeds and show that message
+    final service = TutorialService();
+    service.advance(TutorialStep.exploreFeeds);
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (mounted) {
+        triggerAria(TutorialStep.exploreFeeds, delayMs: 0);
+      }
+    });
+  }
+
   void _openAnalysis(String category, String selectedItem) {
+    // Notify tutorial that user opened an evidence item
+    TutorialService().onFeedTapped();
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -24,7 +51,23 @@ class _InvestigationHubScreenState extends State<InvestigationHubScreen> {
           selectedItem: selectedItem,
         ),
       ),
-    );
+    ).then((_) {
+      // On return, check tutorial state and show the next ARIA message
+      final service = TutorialService();
+      final count = EvidenceCollector().collected.length;
+      service.onReadyForDecryption();
+      service.onReadyToFlag(count);
+
+      setState(() {}); // rebuild so briefing file appears if unlocked
+
+      if (service.currentStep == TutorialStep.markEvidence && !service.messageShown) {
+        triggerAria(TutorialStep.markEvidence, delayMs: 300);
+      } else if (service.currentStep == TutorialStep.decryptionHint && !service.messageShown) {
+        triggerAria(TutorialStep.decryptionHint, delayMs: 300);
+      } else if (service.currentStep == TutorialStep.flagSuspect && !service.messageShown) {
+        triggerAria(TutorialStep.flagSuspect, delayMs: 300);
+      }
+    });
   }
 
   @override
@@ -81,65 +124,88 @@ class _InvestigationHubScreenState extends State<InvestigationHubScreen> {
       );
     }
 
-
     final caseData = ghostTraceCase;
 
     return AppShell(
       title: 'Investigation Hub',
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 40),
-            Text(
-              'Case #${caseData.caseId} • Status: ${caseData.status} • Time: ${caseData.duration}',
-              style: TextStyle(color: Colors.white.withOpacity(0.6)),
-            ),
-            const SizedBox(height: 30),
-            _sectionTitle('Evidence Feed'),
-            _panel(
-              child: Wrap(
-                spacing: 12,
+      showBack: true,
+      // ── Wrap in Stack so ARIA can float above the scroll content ──
+      child: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _feedButton('Chat Logs', 'chat'),
-                  _feedButton('Files', 'files'),
-                  _feedButton('Metadata', 'meta'),
-                  _feedButton('IP Traces', 'ip'),
-                  _feedButton('Suspects', 'suspects'),
+                  const SizedBox(height: 40),
+                  Text(
+                    'Case #${caseData.caseId} • Status: ${caseData.status} • Time: ${caseData.duration}',
+                    style: TextStyle(color: Colors.white.withOpacity(0.6)),
+                  ),
+                  const SizedBox(height: 35),
+                  _sectionTitle('Evidence Feed'),
+                  _panel(
+                    child: Wrap(
+                      spacing: 12,
+                      children: [
+                        _feedButton('Chat Logs', 'chat'),
+                        _feedButton('Files', 'files'),
+                        _feedButton('Metadata', 'meta'),
+                        _feedButton('IP Traces', 'ip'),
+                        _feedButton('Suspects', 'suspects'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _sectionTitle('Evidence Viewer'),
+                  _panel(
+                    child: SizedBox(
+                      height: 100,
+                      child: SingleChildScrollView(child: _buildEvidenceContent()),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  _sectionTitle('Timeline View'),
+                  _panel(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: caseData.timeline.map((event) {
+                        return _timelineEvent(event);
+                      }).toList(),
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            _sectionTitle('Evidence Viewer'),
-            _panel(
-              child: SizedBox(
-                height: 100,
-                child: SingleChildScrollView(child: _buildEvidenceContent()),
-              ),
-            ),
-            const SizedBox(height: 20),
+          ),
 
-            _sectionTitle('Timeline View'),
-            _panel(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: caseData.timeline.map((event) {
-                  return _timelineEvent(event);
-                }).toList(),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-          ],
-        ),
+          // ── ARIA floating guide at the bottom ──
+          buildAriaLayer(
+            onDismiss: () {
+              if (ariaStep == TutorialStep.welcomeToHub) {
+                _onAriaWelcomeDismissed();
+              }
+            },
+          ),
+        ],
       ),
     );
   }
 
   Widget _feedButton(String label, String key) {
     return OutlinedButton(
-      onPressed: () => setState(() => _activeFeed = key),
+      onPressed: () {
+        setState(() => _activeFeed = key);
+        // Notify tutorial a feed tab was tapped (not suspects)
+        if (key != 'suspects') {
+          TutorialService().onFeedTapped();
+        }
+      },
       style: OutlinedButton.styleFrom(
         foregroundColor: _activeFeed == key ? Colors.black : AppShell.neonCyan,
         backgroundColor: _activeFeed == key ? AppShell.neonCyan : Colors.transparent,
@@ -158,8 +224,7 @@ class _InvestigationHubScreenState extends State<InvestigationHubScreen> {
               _openAnalysis('chat', 'Patch deployed successfully.');
             }),
             _ClickableLogLine(left: 'Ghost', right: 'I noticed.', onTap: () => _openAnalysis('chat', 'I noticed.')),
-            _ClickableLogLine(left: 'Ghost', right: 'Check your finance workstation.', onTap: () => _openAnalysis('chat', 'Check your finance workstation.')),
-            _ClickableLogLine(left: 'Ankita E', right: 'Can you send me the Q3 forecast again?', onTap: () => _openAnalysis('chat', 'Can you send me the Q3 forecast again?')),
+            _ClickableLogLine(left: 'Ghost', right: 'Check your finance account.', onTap: () => _openAnalysis('chat', 'Check your finance workstation.')),
           ],
         );
 
@@ -171,11 +236,11 @@ class _InvestigationHubScreenState extends State<InvestigationHubScreen> {
             _ClickableLogLine(left: 'debug_log.txt', right: '1.1 MB', onTap: () => _openAnalysis('files', 'debug_log.txt')),
             _ClickableLogLine(left: 'cache_dump.bin', right: '88 MB', onTap: () => _openAnalysis('files', 'cache_dump.bin')),
             if (GameProgress.isBriefingUnlocked)
-            _ClickableLogLine(
-              left: 'ghosttrace_briefing.pdf',
-              right: 'Unlocked Briefing',
-              onTap: () => _openAnalysis('files', 'ghosttrace_briefing.pdf'),
-            ),
+              _ClickableLogLine(
+                left: 'credentials.pdf',
+                right: 'Unlocked Briefing',
+                onTap: () => _openAnalysis('files', 'credentials.pdf'),
+              ),
           ],
         );
 
@@ -266,6 +331,7 @@ class _ClickableLogLine extends StatelessWidget {
     );
   }
 }
+
 class _SuspectRow extends StatelessWidget {
   final String name;
   final String risk;

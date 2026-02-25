@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cyber_investigator/screens/home_screen.dart';
+import 'screens/home_screen.dart';
 
 void main() {
   runApp(const CyberInvestigatorApp());

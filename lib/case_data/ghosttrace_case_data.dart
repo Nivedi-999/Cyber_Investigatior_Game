@@ -122,7 +122,7 @@ final ghostTraceCase = CaseData(
     cipherText: "Dwwdfkphqw",
     hint: "Caesar shift by -3. Decode to unlock the filename.",
     solution: "Attachment",
-    unlockedFilename: "ghosttrace_briefing.pdf",
+    unlockedFilename: "credentials.pdf",
   ),
 );
 
