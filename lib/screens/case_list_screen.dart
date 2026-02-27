@@ -1,8 +1,13 @@
-import '' 'package:flutter/material.dart';
+// lib/screens/case_list_screen.dart
+// ═══════════════════════════════════════════════════════════════
+//  REDESIGNED CASE LIST SCREEN
+// ═══════════════════════════════════════════════════════════════
+
+import 'package:flutter/material.dart';
 import '../theme/app_shell.dart';
+import '../theme/cyber_theme.dart';
+import '../widgets/cyber_widgets.dart';
 import 'case_story_screen.dart';
-
-
 
 class CaseListScreen extends StatelessWidget {
   const CaseListScreen({super.key});
@@ -10,168 +15,276 @@ class CaseListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppShell(
-        title: 'Available Cases',
-        showBack: true,
-      child: Scrollbar(
-        thumbVisibility: true,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 40),
+      title: 'Case Files',
+      showBack: true,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const CyberSectionHeader(
+              title: 'Available Cases',
+              subtitle: 'Select a case to begin investigation',
+            ),
 
-              _case(
-                title: 'Operation GhostTrace',
-                difficulty: 'Medium',
-                theme: 'Insider Data Leak',
-                isGhostTrace: true,
+            _CaseCard(
+              title: 'Operation GhostTrace',
+              difficulty: 'Medium',
+              theme: 'Insider Data Leak',
+              status: 'Available',
+              statusColor: CyberColors.neonGreen,
+              isAvailable: true,
+              onTap: (ctx) => Navigator.push(
+                ctx,
+                PageRouteBuilder(
+                  pageBuilder: (_, __, ___) => const StorylineScreen(),
+                  transitionsBuilder: (_, anim, __, child) =>
+                      FadeTransition(opacity: anim, child: child),
+                  transitionDuration: const Duration(milliseconds: 350),
+                ),
               ),
-              _case(
-                title: 'Phantom Transaction',
-                difficulty: 'Easy',
-                theme: 'Unauthorized Bank Transfer',
-              ),
-              _case(
-                title: 'Silent Attendance Hack',
-                difficulty: 'Easy–Medium',
-                theme: 'College Attendance Manipulation',
-              ),
-              _case(
-                title: 'Dark Proxy Attack',
-                difficulty: 'Hard',
-                theme: 'Masked DDoS via Proxies',
-              ),
-              _case(
-                title: 'The Vanishing Vault',
-                difficulty: 'Insane',
-                theme: 'Encrypted File Destruction',
-              ),
+            ),
 
-              const SizedBox(height: 40),
-            ],
-          ),
+            _CaseCard(
+              title: 'Phantom Transaction',
+              difficulty: 'Easy',
+              theme: 'Unauthorized Bank Transfer',
+              status: 'Coming Soon',
+              statusColor: CyberColors.textMuted,
+              isAvailable: false,
+            ),
+
+            _CaseCard(
+              title: 'Silent Attendance Hack',
+              difficulty: 'Easy–Medium',
+              theme: 'College Attendance Manipulation',
+              status: 'Locked',
+              statusColor: CyberColors.textMuted,
+              isAvailable: false,
+            ),
+
+            _CaseCard(
+              title: 'Dark Proxy Attack',
+              difficulty: 'Hard',
+              theme: 'Masked DDoS via Proxies',
+              status: 'Locked',
+              statusColor: CyberColors.textMuted,
+              isAvailable: false,
+            ),
+
+            _CaseCard(
+              title: 'The Vanishing Vault',
+              difficulty: 'Insane',
+              theme: 'Encrypted File Destruction',
+              status: 'Locked',
+              statusColor: CyberColors.textMuted,
+              isAvailable: false,
+            ),
+          ],
         ),
       ),
-
-    );
-  }
-
-  Widget _case({
-    required String title,
-    required String difficulty,
-    required String theme,
-    bool isGhostTrace = false,
-  }) {
-    return _ExpandableCaseTile(
-      title: title,
-      difficulty: difficulty,
-      theme: theme,
-      isGhostTrace: isGhostTrace,
     );
   }
 }
 
-// ───────────────── EXPANDABLE TILE ─────────────────
-class _ExpandableCaseTile extends StatefulWidget {
+class _CaseCard extends StatefulWidget {
   final String title;
   final String difficulty;
   final String theme;
-  final bool isGhostTrace;
+  final String status;
+  final Color statusColor;
+  final bool isAvailable;
+  final void Function(BuildContext ctx)? onTap;
 
-  const _ExpandableCaseTile({
+  const _CaseCard({
     required this.title,
     required this.difficulty,
     required this.theme,
-    required this.isGhostTrace,
+    required this.status,
+    required this.statusColor,
+    required this.isAvailable,
+    this.onTap,
   });
 
   @override
-  State<_ExpandableCaseTile> createState() => _ExpandableCaseTileState();
+  State<_CaseCard> createState() => _CaseCardState();
 }
 
-class _ExpandableCaseTileState extends State<_ExpandableCaseTile> {
-  bool expanded = false;
+class _CaseCardState extends State<_CaseCard> {
+  bool _expanded = false;
+
+  Color get _diffColor {
+    switch (widget.difficulty.toLowerCase()) {
+      case 'easy':         return CyberColors.neonGreen;
+      case 'medium':
+      case 'easy–medium':  return CyberColors.neonAmber;
+      case 'hard':         return CyberColors.neonRed;
+      case 'insane':       return CyberColors.neonPurple;
+      default:             return CyberColors.textSecondary;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 18),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: AppShell.neonCyan.withOpacity(0.5),
-          width: 2,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ───── TITLE ROW ─────
-          InkWell(
-            onTap: () {
-              if (widget.isGhostTrace) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const StorylineScreen(),
-                  ),
-                );
-              }
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.title,
-                      style: const TextStyle(
-                        fontFamily: 'DotMatrix',
-                        fontSize: 26,
-                        color: AppShell.neonCyan,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      expanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
-                      color: AppShell.neonCyan,
-                    ),
-                    onPressed: () {
-                      setState(() => expanded = !expanded);
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
+    final borderColor = widget.isAvailable
+        ? CyberColors.neonCyan
+        : CyberColors.borderSubtle;
 
-          // ───── DROPDOWN INFO ─────
-          if (expanded)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Difficulty: ${widget.difficulty}',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                    ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: NeonContainer(
+        borderColor: borderColor,
+        padding: EdgeInsets.zero,
+        child: Column(
+          children: [
+            // ── Header row ──
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: CyberRadius.medium,
+                onTap: widget.isAvailable
+                    ? () => widget.onTap?.call(context)
+                    : () => setState(() => _expanded = !_expanded),
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Row(
+                    children: [
+                      // Case icon
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: borderColor.withOpacity(0.1),
+                          borderRadius: CyberRadius.small,
+                          border: Border.all(
+                              color: borderColor.withOpacity(0.4), width: 1),
+                        ),
+                        child: Icon(
+                          widget.isAvailable
+                              ? Icons.folder_open_outlined
+                              : Icons.lock_outline,
+                          color: borderColor,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+
+                      // Title + theme
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.title,
+                              style: TextStyle(
+                                fontFamily: 'DotMatrix',
+                                fontSize: 15,
+                                color: widget.isAvailable
+                                    ? CyberColors.neonCyan
+                                    : CyberColors.textMuted,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(widget.theme,
+                                style: CyberText.bodySmall.copyWith(
+                                    fontSize: 12)),
+                          ],
+                        ),
+                      ),
+
+                      // Status + expand
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          StatusChip(
+                            label: widget.status,
+                            color: widget.statusColor,
+                            pulsing: widget.isAvailable,
+                          ),
+                          const SizedBox(height: 6),
+                          Icon(
+                            _expanded
+                                ? Icons.keyboard_arrow_up
+                                : Icons.keyboard_arrow_down,
+                            color: CyberColors.textMuted,
+                            size: 18,
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Theme: ${widget.theme}',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
-        ],
+
+            // ── Expanded info ──
+            AnimatedSize(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+              child: _expanded
+                  ? Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
+                      color: borderColor.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        const Text('Difficulty:  ',
+                            style: TextStyle(
+                                color: CyberColors.textSecondary,
+                                fontSize: 13)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _diffColor.withOpacity(0.12),
+                            borderRadius: CyberRadius.pill,
+                            border: Border.all(
+                                color: _diffColor.withOpacity(0.4),
+                                width: 1),
+                          ),
+                          child: Text(
+                            widget.difficulty,
+                            style: TextStyle(
+                              color: _diffColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text('Theme: ${widget.theme}',
+                        style: CyberText.bodySmall.copyWith(
+                            fontSize: 12)),
+                    if (widget.isAvailable) ...[
+                      const SizedBox(height: 14),
+                      CyberButton(
+                        label: 'Begin Investigation',
+                        icon: Icons.play_arrow_outlined,
+                        isSmall: true,
+                        onTap: () => widget.onTap?.call(context),
+                      ),
+                    ],
+                  ],
+                ),
+              )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
       ),
     );
   }

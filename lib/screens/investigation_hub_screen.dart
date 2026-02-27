@@ -1,6 +1,12 @@
 // lib/screens/investigation_hub_screen.dart
+// ═══════════════════════════════════════════════════════════════
+//  REDESIGNED INVESTIGATION HUB
+// ═══════════════════════════════════════════════════════════════
+
 import 'package:flutter/material.dart';
 import '../theme/app_shell.dart';
+import '../theme/cyber_theme.dart';
+import '../widgets/cyber_widgets.dart';
 import '../case_data/ghosttrace_case_data.dart';
 import 'evidence_analysis_screen.dart';
 import 'suspect_profile_screen.dart';
@@ -17,49 +23,52 @@ class InvestigationHubScreen extends StatefulWidget {
 }
 
 class _InvestigationHubScreenState extends State<InvestigationHubScreen>
-    with AriaMixin {
+    with AriaMixin, TickerProviderStateMixin {
   String _activeFeed = 'chat';
+  late AnimationController _entryCtrl;
+  late Animation<double> _fadeIn;
 
   @override
   void initState() {
     super.initState();
     TutorialService().onHubOpened();
-    // Show ARIA welcome message on first load
     triggerAria(TutorialStep.welcomeToHub);
+
+    _entryCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..forward();
+    _fadeIn = CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOut);
+  }
+
+  @override
+  void dispose() {
+    _entryCtrl.dispose();
+    super.dispose();
   }
 
   void _onAriaWelcomeDismissed() {
-    // After welcome is dismissed, advance to exploreFeeds and show that message
     final service = TutorialService();
     service.advance(TutorialStep.exploreFeeds);
     Future.delayed(const Duration(milliseconds: 700), () {
-      if (mounted) {
-        triggerAria(TutorialStep.exploreFeeds, delayMs: 0);
-      }
+      if (mounted) triggerAria(TutorialStep.exploreFeeds, delayMs: 0);
     });
   }
 
   void _openAnalysis(String category, String selectedItem) {
-    // Notify tutorial that user opened an evidence item
     TutorialService().onFeedTapped();
-
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => EvidenceAnalysisScreen(
-          evidenceType: category,
-          selectedItem: selectedItem,
-        ),
-      ),
+      _slideRoute(EvidenceAnalysisScreen(
+        evidenceType: category,
+        selectedItem: selectedItem,
+      )),
     ).then((_) {
-      // On return, check tutorial state and show the next ARIA message
       final service = TutorialService();
       final count = EvidenceCollector().collected.length;
       service.onReadyForDecryption();
       service.onReadyToFlag(count);
-
-      setState(() {}); // rebuild so briefing file appears if unlocked
-
+      setState(() {});
       if (service.currentStep == TutorialStep.markEvidence && !service.messageShown) {
         triggerAria(TutorialStep.markEvidence, delayMs: 300);
       } else if (service.currentStep == TutorialStep.decryptionHint && !service.messageShown) {
@@ -70,121 +79,97 @@ class _InvestigationHubScreenState extends State<InvestigationHubScreen>
     });
   }
 
+  PageRouteBuilder _slideRoute(Widget screen) {
+    return PageRouteBuilder(
+      pageBuilder: (_, __, ___) => screen,
+      transitionsBuilder: (_, anim, __, child) => SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(1, 0),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+        child: child,
+      ),
+      transitionDuration: const Duration(milliseconds: 350),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-
-    Widget _timelineEvent(TimelineEvent event) {
-      return Container(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          border: Border.all(color: AppShell.neonCyan.withOpacity(0.6)),
-          borderRadius: BorderRadius.circular(6),
-          color: Colors.black.withOpacity(0.3),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Time column
-            SizedBox(
-              width: 80,
-              child: Text(
-                event.time,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.6),
-                  fontSize: 12,
-                ),
-              ),
-            ),
-
-            const SizedBox(width: 12),
-
-            // Title + description
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    event.title,
-                    style: const TextStyle(
-                      color: AppShell.neonCyan,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    event.description,
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     final caseData = ghostTraceCase;
 
     return AppShell(
       title: 'Investigation Hub',
       showBack: true,
-      // ── Wrap in Stack so ARIA can float above the scroll content ──
       child: Stack(
         children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
+          FadeTransition(
+            opacity: _fadeIn,
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 140),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 40),
-                  Text(
-                    'Case #${caseData.caseId} • Status: ${caseData.status} • Time: ${caseData.duration}',
-                    style: TextStyle(color: Colors.white.withOpacity(0.6)),
-                  ),
-                  const SizedBox(height: 35),
-                  _sectionTitle('Evidence Feed'),
-                  _panel(
-                    child: Wrap(
-                      spacing: 12,
-                      children: [
-                        _feedButton('Chat Logs', 'chat'),
-                        _feedButton('Files', 'files'),
-                        _feedButton('Metadata', 'meta'),
-                        _feedButton('IP Traces', 'ip'),
-                        _feedButton('Suspects', 'suspects'),
-                      ],
-                    ),
-                  ),
+                  // ── Case Header ──
+                  _CaseHeader(caseData: caseData),
                   const SizedBox(height: 24),
-                  _sectionTitle('Evidence Viewer'),
-                  _panel(
-                    child: SizedBox(
-                      height: 100,
-                      child: SingleChildScrollView(child: _buildEvidenceContent()),
+
+                  // ── Feed Tabs ──
+                  const CyberSectionHeader(
+                    title: 'Evidence Feed',
+                    subtitle: 'Tap a category to explore',
+                  ),
+                  _FeedTabBar(
+                    activeFeed: _activeFeed,
+                    onTabChanged: (key) {
+                      setState(() => _activeFeed = key);
+                      if (key != 'suspects') TutorialService().onFeedTapped();
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  // ── Evidence Viewer ──
+                  NeonContainer(
+                    padding: const EdgeInsets.all(12),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 80, maxHeight: 260),
+                      child: SingleChildScrollView(
+                        child: _buildEvidenceContent(),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 20),
 
-                  _sectionTitle('Timeline View'),
-                  _panel(
+                  const SizedBox(height: 28),
+
+                  // ── Timeline ──
+                  const CyberSectionHeader(
+                    title: 'Event Timeline',
+                    subtitle: 'Chronological breach activity',
+                  ),
+                  NeonContainer(
+                    borderColor: CyberColors.neonPurple,
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: caseData.timeline.map((event) {
-                        return _timelineEvent(event);
+                      children: caseData.timeline.asMap().entries.map((entry) {
+                        final i = entry.key;
+                        final event = entry.value;
+                        return TimelineItem(
+                          time: event.time,
+                          title: event.title,
+                          description: event.description,
+                          isLast: i == caseData.timeline.length - 1,
+                          accentColor: i == 0
+                              ? CyberColors.neonRed
+                              : CyberColors.neonPurple,
+                        );
                       }).toList(),
                     ),
                   ),
-
-                  const SizedBox(height: 24),
                 ],
               ),
             ),
           ),
 
-          // ── ARIA floating guide at the bottom ──
+          // ── ARIA Guide ──
           buildAriaLayer(
             onDismiss: () {
               if (ariaStep == TutorialStep.welcomeToHub) {
@@ -197,49 +182,49 @@ class _InvestigationHubScreenState extends State<InvestigationHubScreen>
     );
   }
 
-  Widget _feedButton(String label, String key) {
-    return OutlinedButton(
-      onPressed: () {
-        setState(() => _activeFeed = key);
-        // Notify tutorial a feed tab was tapped (not suspects)
-        if (key != 'suspects') {
-          TutorialService().onFeedTapped();
-        }
-      },
-      style: OutlinedButton.styleFrom(
-        foregroundColor: _activeFeed == key ? Colors.black : AppShell.neonCyan,
-        backgroundColor: _activeFeed == key ? AppShell.neonCyan : Colors.transparent,
-        side: const BorderSide(color: AppShell.neonCyan),
-      ),
-      child: Text(label),
-    );
-  }
-
   Widget _buildEvidenceContent() {
     switch (_activeFeed) {
       case 'chat':
         return Column(
           children: [
-            _ClickableLogLine(left: 'Admin', right: 'Patch deployed successfully.', onTap: () {
-              _openAnalysis('chat', 'Patch deployed successfully.');
-            }),
-            _ClickableLogLine(left: 'Ghost', right: 'I noticed.', onTap: () => _openAnalysis('chat', 'I noticed.')),
-            _ClickableLogLine(left: 'Ghost', right: 'Check your finance account.', onTap: () => _openAnalysis('chat', 'Check your finance workstation.')),
+            LogRow(
+              left: 'Admin',
+              right: 'Patch deployed successfully.',
+              onTap: () => _openAnalysis('chat', 'Patch deployed successfully.'),
+            ),
+            LogRow(
+              left: 'Ghost',
+              right: 'I noticed.',
+              onTap: () => _openAnalysis('chat', 'I noticed.'),
+            ),
+            LogRow(
+              left: 'Ghost',
+              right: 'Check your finance account.',
+              onTap: () => _openAnalysis('chat', 'Check your finance workstation.'),
+              highlighted: true,
+            ),
           ],
         );
 
       case 'files':
         return Column(
           children: [
-            _ClickableLogLine(left: 'finance_report_q3.pdf', right: '12 MB', onTap: () => _openAnalysis('files', 'finance_report_q3.pdf')),
-            _ClickableLogLine(left: 'system_patch.exe', right: '4.2 MB', onTap: () => _openAnalysis('files', 'system_patch.exe')),
-            _ClickableLogLine(left: 'debug_log.txt', right: '1.1 MB', onTap: () => _openAnalysis('files', 'debug_log.txt')),
-            _ClickableLogLine(left: 'cache_dump.bin', right: '88 MB', onTap: () => _openAnalysis('files', 'cache_dump.bin')),
+            LogRow(left: 'finance_report_q3.pdf', right: '12 MB',
+                onTap: () => _openAnalysis('files', 'finance_report_q3.pdf'),
+                highlighted: true),
+            LogRow(left: 'system_patch.exe', right: '4.2 MB',
+                onTap: () => _openAnalysis('files', 'system_patch.exe')),
+            LogRow(left: 'debug_log.txt', right: '1.1 MB',
+                onTap: () => _openAnalysis('files', 'debug_log.txt'),
+                highlighted: true),
+            LogRow(left: 'cache_dump.bin', right: '88 MB',
+                onTap: () => _openAnalysis('files', 'cache_dump.bin')),
             if (GameProgress.isBriefingUnlocked)
-              _ClickableLogLine(
+              LogRow(
                 left: 'credentials.pdf',
-                right: 'Unlocked Briefing',
+                right: 'UNLOCKED',
                 onTap: () => _openAnalysis('files', 'credentials.pdf'),
+                highlighted: true,
               ),
           ],
         );
@@ -247,44 +232,55 @@ class _InvestigationHubScreenState extends State<InvestigationHubScreen>
       case 'meta':
         return Column(
           children: [
-            _ClickableLogLine(left: 'Device', right: 'FIN-WS-114', onTap: () => _openAnalysis('meta', 'Device')),
-            _ClickableLogLine(left: 'OS', right: 'Windows 11 Pro', onTap: () => _openAnalysis('meta', 'OS')),
-            _ClickableLogLine(left: 'Last User', right: 'Ankita E @ 09:15 AM', onTap: () => _openAnalysis('meta', 'Last User')),
+            LogRow(left: 'Device', right: 'FIN-WS-114',
+                onTap: () => _openAnalysis('meta', 'Device')),
+            LogRow(left: 'OS', right: 'Windows 11 Pro',
+                onTap: () => _openAnalysis('meta', 'OS')),
+            LogRow(
+              left: 'Last User',
+              right: 'Ankita E @ 09:15 AM',
+              onTap: () => _openAnalysis('meta', 'Last User'),
+              highlighted: true,
+            ),
           ],
         );
 
       case 'ip':
         return Column(
           children: [
-            _ClickableLogLine(left: 'Internal Origin', right: '172.16.44.21', onTap: () => _openAnalysis('ip', 'Internal Origin')),
-            _ClickableLogLine(left: 'External Hop', right: '202.56.23.101', onTap: () => _openAnalysis('ip', 'External Hop')),
+            LogRow(
+              left: 'Internal Origin',
+              right: '172.16.44.21',
+              onTap: () => _openAnalysis('ip', 'Internal Origin'),
+              highlighted: true,
+            ),
+            LogRow(
+              left: 'External Hop',
+              right: '202.56.23.101',
+              onTap: () => _openAnalysis('ip', 'External Hop'),
+              highlighted: true,
+            ),
           ],
         );
 
       case 'suspects':
         return Column(
           children: ghostTraceCase.suspects.map((suspect) {
-            Color color;
-            switch (suspect.riskLevel.toLowerCase()) {
-              case 'high':
-                color = Colors.redAccent;
-                break;
-              case 'medium':
-                color = Colors.orangeAccent;
-                break;
-              default:
-                color = Colors.greenAccent;
-            }
-            return InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => SuspectProfileScreen(suspect: suspect),
-                  ),
-                );
-              },
-              child: _SuspectRow(suspect.name, suspect.risk, color),
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SuspectCard(
+                name: suspect.name,
+                role: 'Employee',
+                riskLevel: suspect.riskLevel,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SuspectProfileScreen(suspect: suspect),
+                    ),
+                  );
+                },
+              ),
             );
           }).toList(),
         );
@@ -293,70 +289,120 @@ class _InvestigationHubScreenState extends State<InvestigationHubScreen>
         return const SizedBox();
     }
   }
-
-  Widget _sectionTitle(String title) => Text(
-    title,
-    style: const TextStyle(fontFamily: 'DotMatrix', fontSize: 22, color: AppShell.neonCyan),
-  );
-
-  Widget _panel({required Widget child}) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(border: Border.all(color: AppShell.neonCyan, width: 2)),
-    child: child,
-  );
 }
 
-class _ClickableLogLine extends StatelessWidget {
-  final String left;
-  final String right;
-  final VoidCallback onTap;
-
-  const _ClickableLogLine({required this.left, required this.right, required this.onTap});
+// ── Case Header ──
+class _CaseHeader extends StatelessWidget {
+  final CaseData caseData;
+  const _CaseHeader({required this.caseData});
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(left, style: const TextStyle(color: Colors.white)),
-            Text(right, style: TextStyle(color: AppShell.neonCyan.withOpacity(0.8))),
-          ],
-        ),
+    return NeonContainer(
+      borderColor: CyberColors.neonCyan,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          // Case ID badge
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: CyberColors.neonCyan.withOpacity(0.1),
+              borderRadius: CyberRadius.small,
+              border: Border.all(
+                  color: CyberColors.neonCyan.withOpacity(0.4), width: 1.5),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '#${caseData.caseId}',
+                  style: const TextStyle(
+                    fontFamily: 'DotMatrix',
+                    fontSize: 13,
+                    color: CyberColors.neonCyan,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Operation GhostTrace',
+                  style: TextStyle(
+                    fontFamily: 'DotMatrix',
+                    fontSize: 15,
+                    color: CyberColors.neonCyan,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Insider Database Breach',
+                  style: CyberText.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              StatusChip(
+                label: caseData.status,
+                color: CyberColors.neonGreen,
+                pulsing: true,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                caseData.duration,
+                style: CyberText.caption,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-class _SuspectRow extends StatelessWidget {
-  final String name;
-  final String risk;
-  final Color color;
+// ── Feed Tab Bar ──
+class _FeedTabBar extends StatelessWidget {
+  final String activeFeed;
+  final ValueChanged<String> onTabChanged;
 
-  const _SuspectRow(this.name, this.risk, this.color);
+  const _FeedTabBar({
+    required this.activeFeed,
+    required this.onTabChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+    final tabs = [
+      ('chat', 'Chat'),
+      ('files', 'Files'),
+      ('meta', 'Meta'),
+      ('ip', 'IP'),
+      ('suspects', 'Suspects'),
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       child: Row(
-        children: [
-          Expanded(child: Text(name, style: const TextStyle(color: Colors.white))),
-          Text(
-            risk,
-            style: TextStyle(color: color, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(width: 10),
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-        ],
+        children: tabs.map((tab) {
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FeedTabButton(
+              label: tab.$2,
+              isActive: activeFeed == tab.$1,
+              onTap: () => onTabChanged(tab.$1),
+            ),
+          );
+        }).toList(),
       ),
     );
   }

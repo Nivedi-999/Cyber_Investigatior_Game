@@ -1,11 +1,17 @@
 // lib/screens/case_outcome_screen.dart
+// ═══════════════════════════════════════════════════════════════
+//  REDESIGNED CASE OUTCOME SCREEN
+// ═══════════════════════════════════════════════════════════════
+
 import 'package:flutter/material.dart';
 import '../theme/app_shell.dart';
+import '../theme/cyber_theme.dart';
+import '../widgets/cyber_widgets.dart';
 import '../services/evidence_collector.dart';
 import '../services/game_progress.dart';
 
 class CaseOutcomeScreen extends StatefulWidget {
-  final String? flaggedSuspectName; // Who the user flagged
+  final String? flaggedSuspectName;
 
   const CaseOutcomeScreen({
     super.key,
@@ -16,223 +22,314 @@ class CaseOutcomeScreen extends StatefulWidget {
   State<CaseOutcomeScreen> createState() => _CaseOutcomeScreenState();
 }
 
-class _CaseOutcomeScreenState extends State<CaseOutcomeScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _progressAnimation;
+class _CaseOutcomeScreenState extends State<CaseOutcomeScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _entryCtrl;
+  late AnimationController _iconCtrl;
+  late AnimationController _barCtrl;
 
-  // Define correct evidences (you can move this to ghosttrace_case_data.dart later)
+  late Animation<double> _fadeIn;
+  late Animation<double> _iconScale;
+  late Animation<double> _iconGlow;
+  late Animation<double> _barProgress;
+
   final Set<String> _correctEvidences = {
     'files:finance_report_q3.pdf',
     'files:debug_log.txt',
     'meta:Last User',
     'ip:Internal Origin',
     'ip:External Hop',
-    // Add any other truly decisive evidences here
   };
+
+  late bool _isCorrectSuspect;
+  late int _correctCount;
+  late bool _isWin;
 
   @override
   void initState() {
     super.initState();
 
-    // Count correct evidences
     final collected = EvidenceCollector().collected;
-    int correctCount = collected.where((item) {
+    _correctCount = collected.where((item) {
       final key = '${item['category']}:${item['item']}';
       return _correctEvidences.contains(key);
     }).length;
+    _isCorrectSuspect = widget.flaggedSuspectName == 'Ankita E';
+    _isWin = _isCorrectSuspect && _correctCount >= 3;
 
-    // Check if the flagged suspect is correct
-    final bool isCorrectSuspect = widget.flaggedSuspectName == 'Ankita E';
+    if (_isWin) GameProgress.addXp(10);
 
-    // Only award XP if both suspect and evidence are correct
-    if (isCorrectSuspect && correctCount >= 3) {
-      GameProgress.addXp(10);
-    }
-
-    // Animation setup
-    _controller = AnimationController(
+    // Entry animation
+    _entryCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 800),
+    )..forward();
+    _fadeIn = CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOut);
+
+    // Icon scale
+    _iconCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _iconScale = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _iconCtrl, curve: Curves.elasticOut),
+    );
+    _iconGlow = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _iconCtrl, curve: Curves.easeOut),
     );
 
-    _progressAnimation = Tween<double>(
+    // XP bar
+    _barCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    _barProgress = Tween<double>(
       begin: 0.0,
-      end: GameProgress.xp / 100.0.clamp(0.0, 1.0),
-    ).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-    );
+      end: (GameProgress.xp / 100.0).clamp(0.0, 1.0),
+    ).animate(CurvedAnimation(parent: _barCtrl, curve: Curves.easeOutCubic));
 
-    // Start animation only on actual win
-    if (isCorrectSuspect && correctCount >= 3) {
-      _controller.forward();
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) _iconCtrl.forward();
+    });
+    if (_isWin) {
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (mounted) _barCtrl.forward();
+      });
     }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _entryCtrl.dispose();
+    _iconCtrl.dispose();
+    _barCtrl.dispose();
     super.dispose();
+  }
+
+  // Outcome configuration
+  _OutcomeConfig get _config {
+    if (!_isCorrectSuspect) {
+      return _OutcomeConfig(
+        title: 'Wrong Suspect',
+        subtitle:
+        'You flagged ${widget.flaggedSuspectName ?? "unknown"}, but the real culprit was Ankita E.',
+        label: 'CASE FAILED',
+        icon: Icons.cancel_outlined,
+        color: CyberColors.neonRed,
+        gradient: CyberColors.dangerGradient,
+      );
+    } else if (_correctCount >= 3) {
+      return _OutcomeConfig(
+        title: 'Case Solved!',
+        subtitle:
+        'Correct suspect identified with sufficient evidence chain.',
+        label: 'CASE CLOSED',
+        icon: Icons.verified_outlined,
+        color: CyberColors.neonGreen,
+        gradient: CyberColors.successGradient,
+      );
+    } else if (_correctCount == 0) {
+      return _OutcomeConfig(
+        title: 'Case Gone Cold',
+        subtitle: 'No relevant evidence was collected to support the accusation.',
+        label: 'COLD CASE',
+        icon: Icons.ac_unit_outlined,
+        color: Colors.blueGrey,
+        gradient: const LinearGradient(colors: [Colors.blueGrey, Colors.grey]),
+      );
+    } else {
+      return _OutcomeConfig(
+        title: 'Insufficient Evidence',
+        subtitle:
+        'Correct suspect, but not enough evidence to close the case.',
+        label: 'PARTIAL',
+        icon: Icons.warning_amber_outlined,
+        color: CyberColors.neonAmber,
+        gradient: LinearGradient(
+          colors: [CyberColors.neonAmber, Colors.orange.shade800],
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final cfg = _config;
     final collected = EvidenceCollector().collected;
-    final correctCount = collected.where((item) {
-      final key = '${item['category']}:${item['item']}';
-      return _correctEvidences.contains(key);
-    }).length;
-
-    final bool isCorrectSuspect = widget.flaggedSuspectName == 'Ankita E';
-
-    String title;
-    Color accentColor;
-    IconData icon;
-    String? subtitle;
-
-    if (!isCorrectSuspect) {
-      title = 'WRONG SUSPECT';
-      accentColor = Colors.redAccent;
-      icon = Icons.error_outline;
-      subtitle = 'You flagged ${widget.flaggedSuspectName ?? "unknown"}, but the real culprit was Ankita E.';
-    } else if (correctCount >= 3) {
-      title = 'CASE SOLVED';
-      accentColor = Colors.greenAccent;
-      icon = Icons.verified;
-      subtitle = 'Correctly identified Ankita E + sufficient evidence chain.';
-    } else if (correctCount == 0) {
-      title = 'CASE GONE COLD';
-      accentColor = Colors.blueGrey;
-      icon = Icons.ac_unit;
-      subtitle = 'No relevant evidence collected to support the accusation.';
-    } else {
-      title = 'NOT ENOUGH EVIDENCE';
-      accentColor = Colors.orangeAccent;
-      icon = Icons.warning_amber_rounded;
-      subtitle = 'Evidence collected is insufficient to close the case.';
-    }
-
-    final bool isWin = isCorrectSuspect && correctCount >= 3;
 
     return AppShell(
       title: 'Case Outcome',
       showBack: false,
-      currentIndex: 0,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32.0),
+      child: FadeTransition(
+        opacity: _fadeIn,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Big icon with scale animation
-              AnimatedScale(
-                scale: isWin ? 1.2 : 1.0,
-                duration: const Duration(milliseconds: 1200),
-                curve: Curves.elasticOut,
-                child: Icon(
-                  icon,
-                  size: 120,
-                  color: accentColor,
+              // ── Outcome Hero ──
+              NeonContainer(
+                borderColor: cfg.color,
+                padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+                child: Column(
+                  children: [
+                    // Icon with glow
+                    AnimatedBuilder(
+                      animation: _iconCtrl,
+                      builder: (_, __) {
+                        return Transform.scale(
+                          scale: _iconScale.value,
+                          child: Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [
+                                  cfg.color.withOpacity(0.15 * _iconGlow.value),
+                                  Colors.transparent,
+                                ],
+                              ),
+                              border: Border.all(
+                                color: cfg.color.withOpacity(0.6),
+                                width: 2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: cfg.color
+                                      .withOpacity(0.4 * _iconGlow.value),
+                                  blurRadius: 32,
+                                  spreadRadius: 4,
+                                ),
+                              ],
+                            ),
+                            child: Icon(cfg.icon, color: cfg.color, size: 56),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Status label
+                    StatusChip(label: cfg.label, color: cfg.color),
+                    const SizedBox(height: 12),
+
+                    Text(
+                      cfg.title,
+                      style: TextStyle(
+                        fontFamily: 'DotMatrix',
+                        fontSize: 28,
+                        color: cfg.color,
+                        letterSpacing: 1,
+                        shadows: [Shadow(color: cfg.color, blurRadius: 16)],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      cfg.subtitle,
+                      style: CyberText.bodySmall.copyWith(height: 1.6),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 32),
 
-              // Main title
-              Text(
-                title,
-                style: TextStyle(
-                  fontFamily: 'DotMatrix',
-                  fontSize: 36,
-                  color: accentColor,
-                  letterSpacing: 2,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-
-              // Subtitle / explanation
-              if (subtitle != null)
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 16,
-                    height: 1.4,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
               const SizedBox(height: 24),
 
-              // Evidence stats
-              Text(
-                'Relevant evidences collected: ${collected.length}',
-                style: const TextStyle(color: Colors.white70, fontSize: 18),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Correct matches: $correctCount / ${_correctEvidences.length}',
-                style: TextStyle(
-                  color: accentColor,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+              // ── Stats Panel ──
+              NeonContainer(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const CyberSectionHeader(title: 'Case Report'),
+                    _StatRow(
+                      label: 'Suspect Flagged',
+                      value: widget.flaggedSuspectName ?? '—',
+                      valueColor: _isCorrectSuspect
+                          ? CyberColors.neonGreen
+                          : CyberColors.neonRed,
+                    ),
+                    _StatRow(
+                      label: 'Evidences Collected',
+                      value: '${collected.length}',
+                    ),
+                    _StatRow(
+                      label: 'Correct Evidence Matches',
+                      value: '$_correctCount / ${_correctEvidences.length}',
+                      valueColor: _correctCount >= 3
+                          ? CyberColors.neonGreen
+                          : CyberColors.neonAmber,
+                    ),
+                    _StatRow(
+                      label: 'Outcome',
+                      value: cfg.label,
+                      valueColor: cfg.color,
+                      isLast: true,
+                    ),
+                  ],
                 ),
               ),
 
-              if (isWin) ...[
-                const SizedBox(height: 40),
-                Text(
-                  '+10 XP Awarded',
-                  style: TextStyle(
-                    color: AppShell.neonCyan,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Animated XP bar
-                AnimatedBuilder(
-                  animation: _progressAnimation,
-                  builder: (context, child) {
-                    return Column(
-                      children: [
-                        LinearProgressIndicator(
-                          value: _progressAnimation.value,
-                          backgroundColor: Colors.grey[800],
-                          color: AppShell.neonCyan,
-                          minHeight: 16,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'XP: ${GameProgress.xp} • ${GameProgress.rankName}',
-                          style: TextStyle(
-                            color: AppShell.neonCyan,
-                            fontSize: 18,
+              // ── XP Panel (win only) ──
+              if (_isWin) ...[
+                const SizedBox(height: 24),
+                NeonContainer(
+                  borderColor: CyberColors.neonCyan,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.stars,
+                              color: CyberColors.neonCyan, size: 24),
+                          const SizedBox(width: 10),
+                          Text(
+                            '+10 XP Awarded',
+                            style: CyberText.sectionTitle,
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      AnimatedBuilder(
+                        animation: _barProgress,
+                        builder: (_, __) => CyberProgressBar(
+                          value: _barProgress.value,
+                          height: 14,
                         ),
-                      ],
-                    );
-                  },
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Total XP: ${GameProgress.xp}',
+                            style: CyberText.bodySmall.copyWith(
+                                color: CyberColors.neonCyan),
+                          ),
+                          Text(
+                            GameProgress.rankName.toUpperCase(),
+                            style: CyberText.label,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
 
-              const SizedBox(height: 60),
+              const SizedBox(height: 36),
 
-              // Return to home
-              ElevatedButton.icon(
-                icon: const Icon(Icons.home, color: Colors.black),
-                label: const Text('Return to Home', style: TextStyle(fontSize: 18)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppShell.neonCyan,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              // ── Return Home ──
+              SizedBox(
+                width: double.infinity,
+                child: CyberButton(
+                  label: 'Return to Home',
+                  icon: Icons.home_outlined,
+                  onTap: () {
+                    EvidenceCollector().clearAll();
+                    Navigator.popUntil(context, (route) => route.isFirst);
+                  },
                 ),
-                onPressed: () {
-                  // Clear evidence for next case (optional – comment out if unwanted)
-                  EvidenceCollector().clearAll();
-                  Navigator.popUntil(context, (route) => route.isFirst);
-                },
               ),
             ],
           ),
@@ -240,4 +337,66 @@ class _CaseOutcomeScreenState extends State<CaseOutcomeScreen> with SingleTicker
       ),
     );
   }
+}
+
+// ── Stat Row ──
+class _StatRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color? valueColor;
+  final bool isLast;
+
+  const _StatRow({
+    required this.label,
+    required this.value,
+    this.valueColor,
+    this.isLast = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: CyberText.bodySmall),
+              Text(
+                value,
+                style: TextStyle(
+                  color: valueColor ?? CyberColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (!isLast)
+          Divider(
+              color: CyberColors.borderSubtle, height: 1, thickness: 1),
+      ],
+    );
+  }
+}
+
+// ── Config data class ──
+class _OutcomeConfig {
+  final String title;
+  final String subtitle;
+  final String label;
+  final IconData icon;
+  final Color color;
+  final Gradient gradient;
+
+  const _OutcomeConfig({
+    required this.title,
+    required this.subtitle,
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.gradient,
+  });
 }

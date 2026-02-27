@@ -1,13 +1,18 @@
 // lib/screens/evidence_analysis_screen.dart
+// ═══════════════════════════════════════════════════════════════
+//  REDESIGNED EVIDENCE ANALYSIS SCREEN
+// ═══════════════════════════════════════════════════════════════
+
 import 'package:flutter/material.dart';
 import '../theme/app_shell.dart';
+import '../theme/cyber_theme.dart';
+import '../widgets/cyber_widgets.dart';
 import '../services/evidence_collector.dart';
 import '../services/tutorial_service.dart';
 import '../widgets/aria_guide.dart';
 import '../widgets/aria_controller.dart';
-import 'mini_game.dart'; // your decryption screen
+import 'mini_game.dart';
 
-// ── Converted to StatefulWidget so AriaMixin can be used ──
 class EvidenceAnalysisScreen extends StatefulWidget {
   final String evidenceType;
   final String? selectedItem;
@@ -28,36 +33,63 @@ class _EvidenceAnalysisScreenState extends State<EvidenceAnalysisScreen>
   @override
   void initState() {
     super.initState();
-    // Show ARIA hint when the user first opens an evidence item
     triggerAria(TutorialStep.viewEvidence);
   }
 
   void _handleAddEvidence() {
     if (widget.selectedItem != null && widget.selectedItem!.isNotEmpty) {
       EvidenceCollector().addEvidence(widget.evidenceType, widget.selectedItem!);
-
-      // Notify tutorial that evidence was marked
       TutorialService().onEvidenceMarked();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text(
-            'Evidence added',
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: CyberColors.textOnNeon),
+              const SizedBox(width: 10),
+              const Text(
+                'Evidence added to collection',
+                style: TextStyle(
+                  color: CyberColors.textOnNeon,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
-          backgroundColor: Colors.greenAccent,
+          backgroundColor: CyberColors.neonGreen,
           behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.only(top: 20.0, left: 16.0, right: 16.0),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+              borderRadius: CyberRadius.medium),
           duration: const Duration(seconds: 2),
         ),
       );
 
-      // Show ARIA confirmation after marking evidence
       final service = TutorialService();
-      if (service.currentStep == TutorialStep.markEvidence && !service.messageShown) {
+      if (service.currentStep == TutorialStep.markEvidence &&
+          !service.messageShown) {
         triggerAria(TutorialStep.markEvidence, delayMs: 400);
       }
+    }
+  }
+
+  String _getCategoryTitle(String type) {
+    switch (type) {
+      case 'chat': return 'Chat Logs';
+      case 'files': return 'File System';
+      case 'meta': return 'Metadata Extract';
+      case 'ip': return 'IP Traces';
+      default: return 'Evidence';
+    }
+  }
+
+  IconData _getCategoryIcon(String type) {
+    switch (type) {
+      case 'chat': return Icons.chat_bubble_outline;
+      case 'files': return Icons.folder_outlined;
+      case 'meta': return Icons.data_object;
+      case 'ip': return Icons.wifi;
+      default: return Icons.search;
     }
   }
 
@@ -66,367 +98,592 @@ class _EvidenceAnalysisScreenState extends State<EvidenceAnalysisScreen>
     return AppShell(
       title: 'Evidence Analysis',
       showBack: true,
-      // ── Wrap in Stack so ARIA can float above content ──
       child: Stack(
         children: [
           Column(
             children: [
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // ── Type header ──
+                      _TypeHeader(
+                        type: widget.evidenceType,
+                        title: _getCategoryTitle(widget.evidenceType),
+                        icon: _getCategoryIcon(widget.evidenceType),
+                        selectedItem: widget.selectedItem,
+                      ),
+
                       const SizedBox(height: 20),
-                      Text(
-                        'Case #2047 • Operation GhostTrace',
-                        style: TextStyle(color: Colors.white.withOpacity(0.6)),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        _getCategoryTitle(widget.evidenceType),
-                        style: const TextStyle(
-                          fontFamily: 'DotMatrix',
-                          fontSize: 26,
-                          color: AppShell.neonCyan,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      if (widget.selectedItem != null)
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppShell.neonCyan.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppShell.neonCyan.withOpacity(0.5)),
-                          ),
-                          child: Text(
-                            'Selected: ${widget.selectedItem}',
-                            style: const TextStyle(
-                              color: AppShell.neonCyan,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+
+                      // ── Content panel ──
+                      NeonContainer(
+                        padding: const EdgeInsets.all(16),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                              minHeight: 200, maxHeight: 440),
+                          child: SingleChildScrollView(
+                            child: _buildContent(
+                              widget.evidenceType,
+                              widget.selectedItem,
                             ),
                           ),
                         ),
-                      const SizedBox(height: 24),
-                      _panel(
-                        child: SizedBox(
-                          height: 480,
-                          child: SingleChildScrollView(
-                            child: _buildContent(widget.evidenceType, widget.selectedItem),
-                          ),
-                        ),
                       ),
-                      const SizedBox(height: 32),
+
+                      const SizedBox(height: 24),
+
+                      // ── Hidden clue button ──
                       Center(
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.lock_open, color: Colors.black),
-                          label: const Text('Unlock Hidden Clue', style: TextStyle(fontSize: 18)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppShell.neonCyan,
-                            foregroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                          ),
-                          onPressed: () {
+                        child: CyberButton(
+                          label: 'Unlock Hidden Clue',
+                          icon: Icons.lock_open_outlined,
+                          accentColor: CyberColors.neonPurple,
+                          onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const DecryptionMiniGameScreen(),
+                                builder: (_) => const DecryptionMiniGameScreen(),
                               ),
                             );
                           },
                         ),
                       ),
-                      const SizedBox(height: 40),
+
+                      const SizedBox(height: 32),
                     ],
                   ),
                 ),
               ),
 
-              // ── Add as Evidence bottom bar (unchanged) ──
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.8),
-                  border: const Border(
-                    top: BorderSide(color: AppShell.neonCyan, width: 2),
-                  ),
+              // ── Add Evidence Bottom Bar ──
+              // Pad bottom to stay above the floating nav bar (extendBody: true)
+              Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).padding.bottom,
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.check_circle_outline, color: Colors.black),
-                      label: const Text('Add as Evidence'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.greenAccent,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                      ),
-                      onPressed: _handleAddEvidence,
-                    ),
-                  ],
+                child: _AddEvidenceBar(
+                  onAdd: _handleAddEvidence,
+                  selectedItem: widget.selectedItem,
                 ),
               ),
             ],
           ),
 
-          // ── ARIA floating guide ──
+          // ── ARIA Guide ──
           buildAriaLayer(),
         ],
       ),
     );
   }
 
-  String _getCategoryTitle(String type) {
-    switch (type) {
-      case 'chat': return 'Chat Logs';
-      case 'files': return 'Files';
-      case 'meta': return 'Metadata Extract';
-      case 'ip': return 'IP Traces';
-      default: return 'Evidence';
-    }
-  }
-
   Widget _buildContent(String type, String? selected) {
     if (selected == null) {
-      return const Text(
-        'No item selected.\nGo back and choose an evidence item to analyze.',
-        style: TextStyle(color: Colors.white70, fontSize: 15, height: 1.5),
+      return Center(
+        child: Column(
+          children: [
+            const SizedBox(height: 40),
+            Icon(Icons.inbox_outlined,
+                color: CyberColors.textMuted, size: 48),
+            const SizedBox(height: 12),
+            Text(
+              'No item selected.\nGo back and choose an evidence item.',
+              style: CyberText.bodySmall.copyWith(height: 1.6),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       );
     }
 
     if (type == 'files') {
       if (selected == 'finance_report_q3.pdf') {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Finance Report [Q3]', style: TextStyle(
-                color: AppShell.neonCyan,
-                fontSize: 20,
-                fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            const Text('Last modified: 09:31 AM by Ankita E',
-                style: TextStyle(color: Colors.orangeAccent)),
-            const SizedBox(height: 16),
-            const Text(
-                'Content: \nAnomalies Detected:\n'
-                    '-> ₹2.3 Crore transferred to offshore account: ACC-4482-X\n'
-                    '-> Unscheduled vendor payment: "Northstar Solutions"\n'
-                    '-> Duplicate reimbursement entries on 14th August',
-                style: TextStyle(color: Colors.white, fontSize: 14)),
-            const SizedBox(height: 12),
-            const Text('Quarter 3 Revenue Overview: \n'
-                '# Total Revenue: ₹48.6 Crore\n'
-                '# Operating Costs: ₹31.2 Crore\n'
-                '# Net Profit: ₹17.4 Crore\n',
-                style: TextStyle(color: Colors.purpleAccent)),
+        return _FileReport(
+          filename: 'finance_report_q3.pdf',
+          modifier: 'Ankita E',
+          modTime: '09:31 AM',
+          entries: const [
+            _DataEntry('Anomaly 1', '₹2.3 Crore → offshore ACC-4482-X',
+                color: CyberColors.neonRed),
+            _DataEntry('Anomaly 2', 'Unscheduled payment to "Northstar Solutions"',
+                color: CyberColors.neonAmber),
+            _DataEntry('Anomaly 3', 'Duplicate reimbursements — 14 Aug',
+                color: CyberColors.neonAmber),
+            _DataEntry('Total Revenue', '₹48.6 Crore'),
+            _DataEntry('Operating Costs', '₹31.2 Crore'),
+            _DataEntry('Net Profit', '₹17.4 Crore'),
           ],
         );
       }
       if (selected == 'system_patch.exe') {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('System Patch Executable', style: TextStyle(
-                color: AppShell.neonCyan,
-                fontSize: 20,
-                fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            const Text(
-                'Deployed: 09:45 AM', style: TextStyle(color: Colors.white70)),
-            const SizedBox(height: 8),
-            const Text('Size: 4.2 MB', style: TextStyle(color: Colors.white70)),
-            const SizedBox(height: 16),
-            const Text('Signed by: Internal Admin (Dhruv A)',
-                style: TextStyle(color: Colors.orangeAccent)),
-            const SizedBox(height: 12),
-            const Text(
-                'Note: Patch included unusual outbound connection module.',
-                style: TextStyle(color: Colors.white70)),
+        return _FileReport(
+          filename: 'system_patch.exe',
+          modifier: 'Dhruv A (Admin)',
+          modTime: '09:45 AM',
+          entries: const [
+            _DataEntry('Signed by', 'Internal Admin — Dhruv A'),
+            _DataEntry('Size', '4.2 MB'),
+            _DataEntry('Note', 'Contains unusual outbound connection module',
+                color: CyberColors.neonAmber),
           ],
         );
       }
       if (selected == 'debug_log.txt') {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Debug Log', style: TextStyle(color: AppShell.neonCyan,
-                fontSize: 20,
-                fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            const Text(
-                'Key entry: "Credentials export initiated from FIN-WS-114 at 10:43 AM"',
-                style: TextStyle(color: Colors.orangeAccent)),
-            const SizedBox(height: 16),
-            const Text(
-                '[2026-02-02 01:14:22] PatchService: Starting update...\n'
-                    '[2026-02-02 01:14:24] PatchService: Verified signature (status: OK)\n'
-                    '[2026-02-02 01:14:31] Network: Outbound connection established \nto 185.193.127.44\n'
-                    '[2026-02-02 01:14:32] Warning: Unexpected privilege escalation\n'
-                    '[2026-02-02 01:14:35] Error: Hash mismatch in module agent.dll\n'
-                    '[2026-02-02 01:14:36] PatchService: Process terminated \nunexpectedly\n'
-                    '[2026-02-02 01:14:40] SecurityAgent: No threat detected'),
-          ],
-        );
+        return _LogContent(lines: const [
+          '[2026-02-02 01:14:22] PatchService: Starting update...',
+          '[2026-02-02 01:14:24] PatchService: Verified signature (OK)',
+          '[2026-02-02 01:14:31] Network: Outbound → 185.193.127.44',
+          '[2026-02-02 01:14:32] ⚠ Warning: Unexpected privilege escalation',
+          '[2026-02-02 01:14:35] ✗ Error: Hash mismatch in module agent.dll',
+          '[2026-02-02 01:14:36] PatchService: Process terminated unexpectedly',
+          '[2026-02-02 01:14:40] SecurityAgent: No threat detected',
+        ], highlight: 'Credentials export initiated from FIN-WS-114 at 10:43 AM');
       }
       if (selected == 'cache_dump.bin') {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Cache Dump (Binary)', style: TextStyle(
-                color: AppShell.neonCyan,
-                fontSize: 20,
-                fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            const Text(
-                'Contains fragments of employee credential database dump',
-                style: TextStyle(color: Colors.orangeAccent)),
-            const SizedBox(height: 16),
-            const Text('Dump timestamp: 10:44–10:46 AM',
-                style: TextStyle(color: Colors.white70)),
-            const SizedBox(height: 12),
-            const Text('Exfiltration path: FIN-WS-114 → local IP 172.16.44.21',
-                style: TextStyle(color: Colors.white70)),
+        return _FileReport(
+          filename: 'cache_dump.bin',
+          modifier: 'System',
+          modTime: '10:44–10:46 AM',
+          entries: const [
+            _DataEntry('Contains', 'Employee credential database fragments',
+                color: CyberColors.neonRed),
+            _DataEntry('Dump Timestamp', '10:44–10:46 AM'),
+            _DataEntry('Exfil Path', 'FIN-WS-114 → 172.16.44.21'),
           ],
         );
       }
-      return const Text(
-        'File content preview not available yet...\n\nTap "Unlock Hidden Clue" for deeper analysis.',
-        style: TextStyle(color: Colors.white70, fontSize: 15, height: 1.5),
-      );
     }
 
     if (type == 'meta') {
+      final rows = <_DataEntry>[];
       if (selected == 'Device') {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            _MetaLine('Workstation ID', 'FIN-WS-114'),
-            _MetaLine('Physical Location', 'Finance Dept. Mumbai HQ'),
-            _MetaLine('Access Control', 'Biometric + PIN required'),
-          ],
-        );
+        rows.addAll(const [
+          _DataEntry('Workstation ID', 'FIN-WS-114'),
+          _DataEntry('Location', 'Finance Dept. Mumbai HQ'),
+          _DataEntry('Access Control', 'Biometric + PIN'),
+        ]);
+      } else if (selected == 'OS') {
+        rows.addAll(const [
+          _DataEntry('OS', 'Windows 11 Pro (Build 22621)'),
+          _DataEntry('Last Update', '2024-01-15 08:40 AM'),
+          _DataEntry('Patch Level', 'KB5034123 applied'),
+        ]);
+      } else if (selected == 'Last User') {
+        rows.addAll(const [
+          _DataEntry('Last Login User', 'Ankita E',
+              color: CyberColors.neonAmber),
+          _DataEntry('Login Time', '09:15 AM – 11:02 AM'),
+          _DataEntry('Session Type', 'Active'),
+        ]);
       }
-      if (selected == 'OS') {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            _MetaLine('Operating System', 'Windows 11 Pro (Build 22621)'),
-            _MetaLine('Last Update', '2024-01-15 08:40 AM'),
-            _MetaLine('Patch Level', 'KB5034123 applied'),
-          ],
-        );
-      }
-      if (selected == 'Last User') {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            _MetaLine('Last Logged In User', 'Ankita E'),
-            _MetaLine('Login Time', '09:15 AM – 11:02 AM'),
-            _MetaLine('Session Type', 'Active'),
-          ],
-        );
-      }
-      return const Text(
-        'Metadata detail not available for this selection.',
-        style: TextStyle(color: Colors.white70, fontSize: 15, height: 1.5),
+      return Column(
+        children: rows.map((e) => _DataEntryRow(entry: e)).toList(),
       );
     }
 
     if (type == 'ip') {
+      final rows = <_DataEntry>[];
       if (selected == 'Internal Origin') {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            _MetaLine('Source IP', '172.16.44.21'),
-            _MetaLine('MAC Address', '00-25-96-FF-12-34'),
-            _MetaLine('Hostname', 'FIN-WS-114.corp.local'),
-            _MetaLine('Location', 'Internal LAN – Finance Floor'),
-          ],
-        );
+        rows.addAll(const [
+          _DataEntry('Source IP', '172.16.44.21'),
+          _DataEntry('MAC', '00-25-96-FF-12-34'),
+          _DataEntry('Hostname', 'FIN-WS-114.corp.local'),
+          _DataEntry('Location', 'Internal LAN – Finance Floor'),
+        ]);
+      } else if (selected == 'External Hop') {
+        rows.addAll(const [
+          _DataEntry('Next Hop IP', '202.56.23.101',
+              color: CyberColors.neonAmber),
+          _DataEntry('GeoIP', 'Mumbai, Maharashtra, India'),
+          _DataEntry('ISP', 'Public WiFi — Cafe near office',
+              color: CyberColors.neonRed),
+        ]);
       }
-      if (selected == 'External Hop') {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            _MetaLine('Next Hop IP', '202.56.23.101'),
-            _MetaLine('GeoIP Lookup', 'Mumbai, Maharashtra, India'),
-            _MetaLine('ISP', 'Public WiFi Hotspot – Cafe near office'),
-          ],
-        );
-      }
+      return Column(
+        children: rows.map((e) => _DataEntryRow(entry: e)).toList(),
+      );
     }
 
     if (type == 'chat') {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          _LogLine('Admin', 'Patch deployed successfully.'),
-          _LogLine('Ghost', 'I noticed.'),
-          _LogLine('Admin', 'You shouldn\'t be here.'),
-          _LogLine('Ghost', 'You left a door open.'),
-          _LogLine('Admin', 'Who are you?'),
-          _LogLine('Ghost', 'Just a shadow.'),
-          _LogLine('Ghost', 'Check your finance workstation.'),
-          _LogLine('Ankita E', 'Can you send me the Q3 forecast \n again?'),
-          _LogLine('Admin', 'Sent to your internal mail.'),
-          _LogLine('Ghost', 'For the next phase, transfer \n to offshore account.'),
-        ],
-      );
+      return _ChatLog();
     }
-    return const Text(
-      'Detailed content not available for this selection.\nUse "Unlock Hidden Clue" for deeper insights.',
-      style: TextStyle(color: Colors.white70, fontSize: 15, height: 1.5),
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          'No detailed content available for this item.\nUse "Unlock Hidden Clue" for deeper analysis.',
+          style: CyberText.bodySmall.copyWith(height: 1.6),
+          textAlign: TextAlign.center,
+        ),
+      ),
     );
   }
-
-  Widget _panel({required Widget child}) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(border: Border.all(color: AppShell.neonCyan, width: 2)),
-    child: child,
-  );
 }
 
-class _LogLine extends StatelessWidget {
-  final String left;
-  final String right;
+// ── Type Header ──
+class _TypeHeader extends StatelessWidget {
+  final String type;
+  final String title;
+  final IconData icon;
+  final String? selectedItem;
 
-  const _LogLine(this.left, this.right);
+  const _TypeHeader({
+    required this.type,
+    required this.title,
+    required this.icon,
+    this.selectedItem,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+    return NeonContainer(
+      borderColor: CyberColors.neonPurple,
+      padding: const EdgeInsets.all(16),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(left, style: const TextStyle(color: Colors.white)),
-          Text(right, style: TextStyle(color: AppShell.neonCyan.withOpacity(0.8))),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: CyberColors.neonPurple.withOpacity(0.12),
+              borderRadius: CyberRadius.small,
+              border: Border.all(
+                  color: CyberColors.neonPurple.withOpacity(0.4), width: 1),
+            ),
+            child: Icon(icon, color: CyberColors.neonPurple, size: 26),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: CyberText.sectionTitle.copyWith(
+                        color: CyberColors.neonPurple, fontSize: 16)),
+                if (selectedItem != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    selectedItem!,
+                    style: CyberText.bodySmall
+                        .copyWith(color: CyberColors.textPrimary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Text('Case #2047', style: CyberText.caption),
         ],
       ),
     );
   }
 }
 
-class _MetaLine extends StatelessWidget {
-  final String label;
-  final String value;
+// ── Add Evidence Bottom Bar ──
+class _AddEvidenceBar extends StatelessWidget {
+  final VoidCallback onAdd;
+  final String? selectedItem;
 
-  const _MetaLine(this.label, this.value);
+  const _AddEvidenceBar({required this.onAdd, this.selectedItem});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+      decoration: BoxDecoration(
+        color: CyberColors.bgCard,
+        boxShadow: [
+          BoxShadow(
+            color: CyberColors.neonCyan.withOpacity(0.08),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
+          ),
+        ],
+        border: Border(
+          top: BorderSide(
+            color: CyberColors.neonCyan.withOpacity(0.3),
+            width: 1.5,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          if (selectedItem != null)
+            Expanded(
+              child: Text(
+                selectedItem!,
+                style: CyberText.bodySmall.copyWith(
+                    color: CyberColors.textSecondary),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 160,
+            child: CyberButton(
+              label: 'Add Evidence',
+              icon: Icons.add_circle_outline,
+              accentColor: CyberColors.neonGreen,
+              isSmall: true,
+              onTap: onAdd,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── File Report Widget ──
+class _FileReport extends StatelessWidget {
+  final String filename;
+  final String modifier;
+  final String modTime;
+  final List<_DataEntry> entries;
+
+  const _FileReport({
+    required this.filename,
+    required this.modifier,
+    required this.modTime,
+    required this.entries,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(filename,
+            style: CyberText.sectionTitle.copyWith(fontSize: 16)),
+        const SizedBox(height: 4),
+        Text('Modified by $modifier at $modTime',
+            style: CyberText.caption.copyWith(
+                color: CyberColors.neonAmber.withOpacity(0.8))),
+        const SizedBox(height: 16),
+        ...entries.map((e) => _DataEntryRow(entry: e)),
+      ],
+    );
+  }
+}
+
+// ── Log Content Widget ──
+class _LogContent extends StatelessWidget {
+  final List<String> lines;
+  final String? highlight;
+
+  const _LogContent({required this.lines, this.highlight});
+
+  @override
+  Widget build(BuildContext context) {
+    if (highlight != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: CyberColors.neonAmber.withOpacity(0.1),
+              borderRadius: CyberRadius.small,
+              border: Border.all(
+                  color: CyberColors.neonAmber.withOpacity(0.4), width: 1),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.warning_amber_outlined,
+                    color: CyberColors.neonAmber, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Key entry: "$highlight"',
+                    style: TextStyle(
+                        color: CyberColors.neonAmber, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ...lines.map((l) => _LogLine(line: l)),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: lines.map((l) => _LogLine(line: l)).toList(),
+    );
+  }
+}
+
+class _LogLine extends StatelessWidget {
+  final String line;
+  const _LogLine({required this.line});
+
+  Color get _color {
+    if (line.contains('Error') || line.contains('✗'))
+      return CyberColors.neonRed;
+    if (line.contains('Warning') || line.contains('⚠'))
+      return CyberColors.neonAmber;
+    return CyberColors.textSecondary;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Text(
+        line,
+        style: TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 11.5,
+          color: _color,
+          height: 1.5,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Chat Log Widget ──
+class _ChatLog extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final messages = [
+      ('Admin', 'Patch deployed successfully.', false),
+      ('Ghost', 'I noticed.', true),
+      ('Admin', 'You shouldn\'t be here.', false),
+      ('Ghost', 'You left a door open.', true),
+      ('Admin', 'Who are you?', false),
+      ('Ghost', 'Just a shadow.', true),
+      ('Ghost', 'Check your finance workstation.', true),
+      ('Ankita E', 'Can you send me the Q3 forecast again?', false),
+      ('Admin', 'Sent to your internal mail.', false),
+      ('Ghost', 'For the next phase, transfer to offshore account.', true),
+    ];
+
+    return Column(
+      children: messages.map((m) {
+        final isGhost = m.$2;
+        return _ChatBubble(sender: m.$1, message: m.$2, isSuspect: m.$3);
+      }).toList(),
+    );
+  }
+}
+
+class _ChatBubble extends StatelessWidget {
+  final String sender;
+  final String message;
+  final bool isSuspect;
+
+  const _ChatBubble({
+    required this.sender,
+    required this.message,
+    required this.isSuspect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isSuspect ? CyberColors.neonRed : CyberColors.neonCyan;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white70)),
-          Text(value, style: const TextStyle(color: AppShell.neonCyan)),
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withOpacity(0.15),
+              border: Border.all(color: color.withOpacity(0.5), width: 1),
+            ),
+            child: Center(
+              child: Text(
+                sender.substring(0, 1),
+                style: TextStyle(
+                    color: color, fontSize: 11, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(sender,
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5)),
+                const SizedBox(height: 3),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.06),
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(10),
+                      bottomLeft: Radius.circular(10),
+                      bottomRight: Radius.circular(10),
+                    ),
+                    border: Border.all(
+                        color: color.withOpacity(0.2), width: 1),
+                  ),
+                  child: Text(
+                    message,
+                    style: CyberText.bodySmall.copyWith(
+                        color: CyberColors.textPrimary, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Data Entry types ──
+class _DataEntry {
+  final String label;
+  final String value;
+  final Color? color;
+
+  const _DataEntry(this.label, this.value, {this.color});
+}
+
+class _DataEntryRow extends StatelessWidget {
+  final _DataEntry entry;
+  const _DataEntryRow({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(entry.label, style: CyberText.bodySmall),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              entry.value,
+              style: TextStyle(
+                color: entry.color ?? CyberColors.textPrimary,
+                fontSize: 13,
+                fontWeight: entry.color != null
+                    ? FontWeight.w600
+                    : FontWeight.normal,
+              ),
+            ),
+          ),
         ],
       ),
     );
